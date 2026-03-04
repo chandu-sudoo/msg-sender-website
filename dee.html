@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>TG Broadcaster</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Clash+Display:wght@400;600;700&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg:      #07080f;
+  --surface: #0d0f1a;
+  --card:    #111422;
+  --border:  #1c2038;
+  --border2: #252b48;
+  --green:   #00f5a0;
+  --blue:    #4d9fff;
+  --red:     #ff4d6d;
+  --yellow:  #ffd166;
+  --text:    #d8dff0;
+  --muted:   #4a5278;
+  --r:       10px;
+  font-size: 15px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'IBM Plex Mono', monospace;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+}
+
+/* noise overlay */
+body::before {
+  content:'';
+  position:fixed;inset:0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events:none;
+  z-index:0;
+}
+
+.wrap {
+  position:relative;z-index:1;
+  max-width:860px;
+  margin:0 auto;
+  padding:36px 20px 80px;
+  width:100%;
+}
+
+/* ── header ── */
+.hdr {
+  display:flex;align-items:center;gap:16px;
+  margin-bottom:40px;
+  padding-bottom:28px;
+  border-bottom:1px solid var(--border);
+}
+.hdr-icon {
+  width:50px;height:50px;
+  background: linear-gradient(135deg,#00f5a0 0%,#00b4d8 100%);
+  border-radius:14px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;
+  box-shadow: 0 0 30px rgba(0,245,160,.2);
+  flex-shrink:0;
+}
+.hdr-title {font-family:'Clash Display',sans-serif;font-size:1.7rem;font-weight:700;letter-spacing:-1px;}
+.hdr-title span{color:var(--green);}
+.hdr-sub{font-size:.7rem;color:var(--muted);margin-top:3px;}
+.status-dot {
+  margin-left:auto;
+  display:flex;align-items:center;gap:8px;
+  font-size:.72rem;color:var(--muted);
+}
+.dot {
+  width:9px;height:9px;border-radius:50%;
+  background:var(--muted);
+  transition:background .3s;
+}
+.dot.live{background:var(--green);box-shadow:0 0 8px var(--green);}
+.dot.busy{background:var(--yellow);box-shadow:0 0 8px var(--yellow);animation:pulse 1s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* ── section label ── */
+.sec-label {
+  font-size:.62rem;letter-spacing:3px;text-transform:uppercase;
+  color:var(--green);margin-bottom:12px;
+  display:flex;align-items:center;gap:10px;
+}
+.sec-label::after{content:'';flex:1;height:1px;background:var(--border);}
+
+/* ── card ── */
+.card{
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  padding:22px;
+  margin-bottom:18px;
+  transition:border-color .2s;
+}
+.card:hover{border-color:var(--border2);}
+
+/* ── inputs ── */
+input[type=text],textarea,input[type=number]{
+  width:100%;
+  background:rgba(255,255,255,.04);
+  border:1px solid var(--border);
+  border-radius:8px;
+  color:var(--text);
+  font-family:'IBM Plex Mono',monospace;
+  font-size:.8rem;
+  padding:10px 14px;
+  outline:none;
+  transition:border-color .2s,box-shadow .2s;
+  resize:vertical;
+}
+input:focus,textarea:focus{
+  border-color:var(--green);
+  box-shadow:0 0 0 3px rgba(0,245,160,.08);
+}
+textarea{min-height:130px;line-height:1.6;}
+label{font-size:.72rem;color:var(--muted);display:block;margin-bottom:7px;}
+
+/* ── group input row ── */
+.add-row{display:flex;gap:10px;margin-bottom:14px;}
+.add-row input{flex:1;}
+
+/* ── group tags ── */
+.group-tags{display:flex;flex-wrap:wrap;gap:8px;min-height:20px;}
+.tag{
+  display:inline-flex;align-items:center;gap:7px;
+  background:rgba(77,159,255,.1);
+  border:1px solid rgba(77,159,255,.25);
+  color:var(--blue);
+  border-radius:6px;
+  padding:5px 10px;
+  font-size:.74rem;
+  animation:popIn .18s ease;
+}
+@keyframes popIn{from{transform:scale(.85);opacity:0}to{transform:scale(1);opacity:1}}
+.tag button{
+  background:none;border:none;cursor:pointer;
+  color:rgba(77,159,255,.5);font-size:13px;padding:0;
+  line-height:1;transition:color .15s;
+}
+.tag button:hover{color:var(--red);}
+.no-groups{color:var(--muted);font-size:.75rem;padding:6px 0;}
+
+/* ── delay ── */
+.delay-row{display:flex;align-items:center;gap:16px;}
+.delay-num{
+  font-family:'Clash Display',sans-serif;
+  font-size:2.2rem;font-weight:700;
+  color:var(--green);
+  min-width:80px;
+  text-align:right;
+  line-height:1;
+}
+.delay-num small{font-size:.8rem;color:var(--muted);font-family:'IBM Plex Mono',monospace;font-weight:400;margin-left:4px;}
+input[type=range]{
+  flex:1;
+  -webkit-appearance:none;
+  height:5px;border-radius:5px;
+  background: linear-gradient(to right, var(--green) 0%, var(--green) var(--pct,8%), var(--border) var(--pct,8%));
+  outline:none;cursor:pointer;
+  border:none;padding:0;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;
+  width:18px;height:18px;border-radius:50%;
+  background:var(--green);
+  box-shadow:0 0 10px rgba(0,245,160,.5);
+  cursor:pointer;
+}
+.delay-hints{display:flex;justify-content:space-between;font-size:.63rem;color:var(--muted);margin-top:6px;}
+
+/* ── buttons ── */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  padding:11px 22px;border-radius:8px;
+  font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:.78rem;
+  border:none;cursor:pointer;transition:all .18s;
+  letter-spacing:.5px;
+}
+.btn-green{background:var(--green);color:#07080f;}
+.btn-green:hover{background:#00e090;box-shadow:0 6px 20px rgba(0,245,160,.3);}
+.btn-green:disabled{background:var(--muted);color:var(--border);cursor:not-allowed;box-shadow:none;}
+.btn-red{background:rgba(255,77,109,.15);color:var(--red);border:1px solid rgba(255,77,109,.3);}
+.btn-red:hover{background:rgba(255,77,109,.25);}
+.btn-ghost{background:rgba(255,255,255,.04);color:var(--muted);border:1px solid var(--border);}
+.btn-ghost:hover{color:var(--text);border-color:var(--border2);}
+
+.action-row{display:flex;gap:12px;margin-top:4px;flex-wrap:wrap;}
+.btn-big{
+  flex:1;padding:16px;font-size:.88rem;
+  border-radius:10px;
+  position:relative;overflow:hidden;
+}
+.btn-big::after{
+  content:'';
+  position:absolute;inset:0;
+  background:linear-gradient(135deg,rgba(255,255,255,.08),transparent);
+  pointer-events:none;
+}
+
+/* ── log ── */
+.log-box{
+  background:#050608;
+  border:1px solid var(--border);
+  border-radius:8px;
+  padding:14px;
+  height:220px;
+  overflow-y:auto;
+  font-size:.72rem;
+  line-height:1.8;
+}
+.log-box::-webkit-scrollbar{width:4px;}
+.log-box::-webkit-scrollbar-track{background:transparent;}
+.log-box::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px;}
+
+.log-line{display:flex;gap:10px;}
+.log-ts{color:var(--muted);flex-shrink:0;}
+.log-ok   .log-msg{color:var(--green);}
+.log-err  .log-msg{color:var(--red);}
+.log-warn .log-msg{color:var(--yellow);}
+.log-info .log-msg{color:var(--text);}
+
+/* progress bar */
+.prog-wrap{margin-bottom:14px;display:none;}
+.prog-wrap.show{display:block;}
+.prog-bar{
+  height:4px;border-radius:4px;
+  background: linear-gradient(90deg, var(--green), var(--blue));
+  width:0%;transition:width .4s ease;
+  box-shadow:0 0 10px rgba(0,245,160,.4);
+}
+.prog-label{font-size:.68rem;color:var(--muted);margin-top:5px;text-align:right;}
+
+/* char count */
+.char-row{display:flex;justify-content:flex-end;font-size:.67rem;color:var(--muted);margin-top:5px;}
+
+/* badge */
+.badge{
+  display:inline-block;
+  background:rgba(0,245,160,.12);
+  color:var(--green);
+  border-radius:20px;padding:1px 9px;
+  font-size:.68rem;font-weight:600;
+  margin-left:8px;
+}
+
+/* mobile */
+@media(max-width:600px){
+  .delay-row{flex-direction:column;align-items:flex-start;}
+  .delay-num{font-size:1.6rem;}
+  .btn-big{min-width:100%;}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- header -->
+  <div class="hdr">
+    <div class="hdr-icon">📡</div>
+    <div>
+      <div class="hdr-title">TG <span>Broadcaster</span></div>
+      <div class="hdr-sub">userbot · group blaster · reply tracker</div>
+    </div>
+    <div class="status-dot">
+      <div class="dot" id="status-dot"></div>
+      <span id="status-txt">connecting…</span>
+    </div>
+  </div>
+
+  <!-- ── 01 Groups ── -->
+  <div class="sec-label">01 — target groups <span class="badge" id="g-badge">0</span></div>
+  <div class="card">
+    <label>Username, t.me link, or numeric chat ID — press Enter or click Add</label>
+    <div class="add-row">
+      <input type="text" id="g-input" placeholder="@groupname  or  https://t.me/xyz  or  -1001234567" />
+      <button class="btn btn-ghost" onclick="addGroup()">+ Add</button>
+    </div>
+    <div class="group-tags" id="g-tags">
+      <span class="no-groups" id="g-empty">No groups yet — add at least one.</span>
+    </div>
+  </div>
+
+  <!-- ── 02 Message ── -->
+  <div class="sec-label">02 — message</div>
+  <div class="card">
+    <label>What to send — can be changed every time before you broadcast</label>
+    <textarea id="msg" placeholder="Type your message here…&#10;&#10;Supports Telegram markdown:  **bold**  __italic__  `code`  [link](url)"></textarea>
+    <div class="char-row"><span id="char-cnt">0</span> chars</div>
+  </div>
+
+  <!-- ── 03 Delay ── -->
+  <div class="sec-label">03 — delay between sends</div>
+  <div class="card">
+    <label>Gap between each group message (avoids Telegram flood-ban)</label>
+    <div class="delay-row">
+      <div class="delay-num" id="delay-disp">5<small>s</small></div>
+      <input type="range" id="delay-range" min="1" max="60" value="5" oninput="setDelay(this.value)"/>
+    </div>
+    <div class="delay-hints"><span>1s risky</span><span>10s safe</span><span>30s very safe</span><span>60s</span></div>
+  </div>
+
+  <!-- ── 04 Fire ── -->
+  <div class="sec-label">04 — broadcast</div>
+  <div class="card">
+    <div class="prog-wrap" id="prog-wrap">
+      <div class="prog-bar" id="prog-bar"></div>
+      <div class="prog-label" id="prog-label">Preparing…</div>
+    </div>
+
+    <div class="action-row">
+      <button class="btn btn-green btn-big" id="send-btn" onclick="startBroadcast()">
+        🚀 &nbsp;Send to All Groups
+      </button>
+      <button class="btn btn-red btn-big" id="stop-btn" onclick="stopBroadcast()" style="display:none">
+        ⏹ &nbsp;Stop
+      </button>
+    </div>
+
+    <div style="margin-top:18px;">
+      <div class="sec-label" style="font-size:.6rem;margin-bottom:10px;">live log</div>
+      <div class="log-box" id="log-box">
+        <div class="log-line log-info"><span class="log-ts">--:--:--</span><span class="log-msg">Waiting for Python server on localhost:8765…</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div style="text-align:center;font-size:.65rem;color:var(--muted);margin-top:8px;">
+    Reply tracking is always on — replies to your messages are forwarded to <strong style="color:var(--text)">Saved Messages</strong> with group name, sender & message link.
+  </div>
+
+</div>
+
+<script>
+// ── state ──────────────────────────────────────────────────
+const groups = [];
+let delay = 5;
+let running = false;
+
+// ── groups ─────────────────────────────────────────────────
+document.getElementById('g-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') addGroup();
+});
+
+function addGroup() {
+  const inp = document.getElementById('g-input');
+  const v = inp.value.trim();
+  if (!v) return;
+  if (groups.includes(v)) { flash(inp); return; }
+  groups.push(v);
+  inp.value = '';
+  renderTags();
+}
+
+function removeGroup(i) {
+  groups.splice(i, 1);
+  renderTags();
+}
+
+function renderTags() {
+  const wrap  = document.getElementById('g-tags');
+  const empty = document.getElementById('g-empty');
+  const badge = document.getElementById('g-badge');
+  badge.textContent = groups.length;
+  wrap.innerHTML = '';
+  if (!groups.length) {
+    wrap.appendChild(empty);
+    empty.style.display = '';
+    return;
+  }
+  groups.forEach((g, i) => {
+    const tag = document.createElement('div');
+    tag.className = 'tag';
+    tag.innerHTML = `<span>${esc(g)}</span><button onclick="removeGroup(${i})" title="Remove">✕</button>`;
+    wrap.appendChild(tag);
+  });
+}
+
+function flash(el) {
+  el.style.borderColor = 'var(--red)';
+  setTimeout(() => el.style.borderColor = '', 800);
+}
+
+function esc(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── delay slider ───────────────────────────────────────────
+function setDelay(v) {
+  delay = parseInt(v);
+  document.getElementById('delay-disp').innerHTML = `${v}<small>s</small>`;
+  const pct = ((v - 1) / 59 * 100).toFixed(1);
+  document.getElementById('delay-range').style.setProperty('--pct', pct + '%');
+}
+setDelay(5); // init
+
+// ── char count ─────────────────────────────────────────────
+document.getElementById('msg').addEventListener('input', function() {
+  document.getElementById('char-cnt').textContent = this.value.length;
+});
+
+// ── broadcast ──────────────────────────────────────────────
+async function startBroadcast() {
+  const msg = document.getElementById('msg').value.trim();
+  if (!groups.length) { pushLog('❌ Add at least one group first.','err'); return; }
+  if (!msg)           { pushLog('❌ Write a message first.','err'); return; }
+
+  const res = await fetch('/broadcast', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ groups, message: msg, delay })
+  }).catch(() => null);
+
+  if (!res || !res.ok) {
+    const err = res ? (await res.json()).error : 'Server unreachable';
+    pushLog('❌ ' + err, 'err');
+    return;
+  }
+
+  setRunning(true);
+}
+
+async function stopBroadcast() {
+  await fetch('/stop', {method:'POST'}).catch(()=>{});
+  setRunning(false);
+}
+
+function setRunning(r) {
+  running = r;
+  document.getElementById('send-btn').style.display = r ? 'none' : '';
+  document.getElementById('stop-btn').style.display = r ? '' : 'none';
+  document.getElementById('prog-wrap').classList.toggle('show', r);
+  if (r) {
+    document.getElementById('prog-bar').style.width = '0%';
+    document.getElementById('prog-label').textContent = 'Sending…';
+  }
+}
+
+// ── server-sent events log ─────────────────────────────────
+let evtSrc;
+
+function connectSSE() {
+  if (evtSrc) evtSrc.close();
+  evtSrc = new EventSource('/logs/stream');
+
+  evtSrc.onopen = () => setConnected(true);
+  evtSrc.onerror = () => {
+    setConnected(false);
+    setTimeout(connectSSE, 3000);
+  };
+  evtSrc.onmessage = e => {
+    try {
+      const d = JSON.parse(e.data);
+      pushLog(d.msg, d.level);
+
+      // auto-detect completion
+      if (d.msg.includes('Broadcast complete') || d.msg.includes('stopped')) {
+        setRunning(false);
+        document.getElementById('prog-bar').style.width = '100%';
+        document.getElementById('prog-label').textContent = 'Done ✓';
+      }
+      // progress heuristic: count ✅ lines
+      if (d.msg.startsWith('✅') && groups.length) {
+        const match = d.msg.match(/\[(\d+)\/(\d+)\]/);
+        if (match) {
+          const pct = (parseInt(match[1]) / parseInt(match[2]) * 100).toFixed(0);
+          document.getElementById('prog-bar').style.width = pct + '%';
+          document.getElementById('prog-label').textContent = `${match[1]} / ${match[2]} groups sent`;
+        }
+      }
+    } catch {}
+  };
+}
+
+function setConnected(ok) {
+  document.getElementById('status-dot').className = 'dot' + (ok ? ' live' : '');
+  document.getElementById('status-txt').textContent = ok ? 'connected' : 'disconnected';
+}
+
+function pushLog(msg, level='info') {
+  const box = document.getElementById('log-box');
+  const ts = new Date().toTimeString().slice(0,8);
+  const line = document.createElement('div');
+  line.className = `log-line log-${level}`;
+  line.innerHTML = `<span class="log-ts">${ts}</span><span class="log-msg">${esc(msg)}</span>`;
+  box.appendChild(line);
+  box.scrollTop = box.scrollHeight;
+  // keep max 200 lines
+  while (box.children.length > 200) box.removeChild(box.firstChild);
+}
+
+// ── poll running status ────────────────────────────────────
+async function pollStatus() {
+  try {
+    const r = await fetch('/status');
+    const d = await r.json();
+    if (!d.running && running) setRunning(false);
+    if (d.running && !running) setRunning(true);
+  } catch {}
+}
+
+setInterval(pollStatus, 3000);
+connectSSE();
+</script>
+</body>
+</html>
